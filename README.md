@@ -8,7 +8,7 @@ This project demonstrates how to build a custom MCP server using Spring Boot tha
 
 ## MCP Architecture
 
-[INSERT MCP ARCHITECTURE DIAGRAM HERE]
+![MCP ARCHITECTURE DIAGRAM](mcp-architecture.png)
 
 ## Project Structure
 
