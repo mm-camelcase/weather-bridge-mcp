@@ -1,0 +1,36 @@
+# Maven
+target/
+*.class
+*.jar
+*.war
+*.ear
+
+# IntelliJ IDEA
+.idea/
+*.iml
+*.iws
+*.ipr
+out/
+
+# VS Code
+.vscode/
+*.code-workspace
+
+# Eclipse
+.classpath
+.project
+.settings/
+
+# Secrets — never commit these
+.env
+*.env.local
+
+# macOS
+.DS_Store
+
+# Build output
+build/
+
+# Logs
+*.log
+logs/
