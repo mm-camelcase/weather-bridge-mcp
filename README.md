@@ -1,366 +1,285 @@
 # Weather Bridge MCP
 
-A Spring Boot implementation of the Model Context Protocol (MCP) that enables AI agents like GitHub Copilot to access weather data. Demonstrates building a custom MCP server that connects AI models to weather APIs through standardised tools, complete with VS Code integration examples.
+[![CI](https://github.com/mm-camelcase/weather-bridge-mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/mm-camelcase/weather-bridge-mcp/actions/workflows/ci.yml)
+![Java 21](https://img.shields.io/badge/Java-21-orange?logo=openjdk)
+![Spring Boot 3.4](https://img.shields.io/badge/Spring_Boot-3.4-6DB33F?logo=springboot)
+![Spring AI 1.0](https://img.shields.io/badge/Spring_AI-1.0-6DB33F?logo=spring)
+![License MIT](https://img.shields.io/badge/License-MIT-yellow)
 
-## Overview
-
-This project demonstrates how to build a custom MCP server using Spring Boot that allows AI agents like GitHub Copilot to access weather data. The server exposes weather data through MCP tools that GitHub Copilot can use in agent mode to answer questions about weather conditions, forecasts, and alerts.
-
-## MCP Architecture
-
-![MCP ARCHITECTURE DIAGRAM](mcp-architecture.png)
-
-## Project Structure
+A Spring Boot **Model Context Protocol (MCP) server** that bridges live weather data from [OpenWeatherMap](https://openweathermap.org/api) to AI agents. Connect it to **Claude Desktop** or **Claude Code** and ask weather questions in plain English — the agent calls the right tool automatically.
 
 ```
-weather-bridge-mcp/
-├── src/
-│   ├── main/
-│   │   ├── java/com/example/weatherbridgemcp/
-│   │   │   ├── WeatherBridgeMcpApplication.java  # Main Spring Boot application
-│   │   │   ├── config/
-│   │   │   │   ├── McpServerConfig.java          # MCP server configuration
-│   │   │   │   └── AppConfig.java                # General application config
-│   │   │   ├── model/
-│   │   │   │   ├── WeatherData.java              # Weather data model classes
-│   │   │   │   └── ForecastData.java             # Forecast data model classes
-│   │   │   ├── service/
-│   │   │   │   └── WeatherService.java           # Service to call external Weather API
-│   │   │   ├── mcp/
-│   │   │   │   └── WeatherToolProvider.java      # MCP tool provider implementation
-│   │   │   └── controller/
-│   │   │       └── WeatherController.java        # Optional REST controller for testing
-│   │   └── resources/
-│   │       └── application.properties            # App configuration properties
-│   └── test/                                     # Test classes
-├── pom.xml                                       # Maven configuration
-└── vscode-config/                                # VS Code configuration examples
-    └── mcp.json                                  # Example MCP configuration for VS Code
+"What's the weather in Tokyo?" → getCurrentWeather("Tokyo") → 18°C, partly cloudy
+"3-day forecast for Berlin?"   → getForecast("Berlin", 3)  → Mon 12°C, Tue 10°C, Wed 14°C
 ```
 
-## TODO List
+---
 
-This is a project template. To complete the implementation, follow these steps:
+## Architecture
 
-1. Set up the basic Spring Boot project using Spring Initializer
-2. Add Spring AI MCP dependencies to the pom.xml
-3. Implement the Weather API client (WeatherService.java)
-4. Configure the MCP server (McpServerConfig.java)
-5. Implement MCP tools (WeatherToolProvider.java)
-6. Create model classes for weather data
-7. Configure VS Code to connect to your MCP server
-8. Test with GitHub Copilot agent mode
+```mermaid
+graph TB
+    subgraph dev["Developer Environment"]
+        U(["👤 Developer"])
+        CL["Claude Desktop\n/ Claude Code"]
+        MC["MCP Client"]
+        U -->|natural language| CL
+        CL <--> MC
+    end
 
-## Implementation Guide
+    subgraph server["Weather Bridge MCP  —  Spring Boot :8080"]
+        direction TB
+        SSE["SSE Transport\n/sse"]
+        SRV["MCP Server\n(auto-configured)"]
+        TP["WeatherService\n@Tool methods"]
+        RT["RestTemplate"]
+        SSE --> SRV --> TP --> RT
+    end
 
-### Step 1: Set up Spring Boot Project
+    OWM[("☁️ OpenWeatherMap\nREST API")]
 
-Create a new Spring Boot project using Spring Initializer (https://start.spring.io/) with the following settings:
-- Project: Maven
-- Language: Java
-- Spring Boot: Latest stable version
-- Dependencies: Spring Web, Spring Boot DevTools, Lombok (optional)
-
-### Step 2: Add MCP Dependencies
-
-Add the following dependencies to your `pom.xml`:
-
-```xml
-<dependencies>
-    <!-- Spring Boot -->
-    <dependency>
-        <groupId>org.springframework.boot</groupId>
-        <artifactId>spring-boot-starter-web</artifactId>
-    </dependency>
-    
-    <!-- Spring AI MCP -->
-    <dependency>
-        <groupId>org.springframework.experimental</groupId>
-        <artifactId>spring-ai-mcp-core</artifactId>
-        <version>0.1.0</version>
-    </dependency>
-    
-    <!-- WebMVC SSE transport -->
-    <dependency>
-        <groupId>org.springframework.experimental</groupId>
-        <artifactId>mcp-webmvc-sse-transport</artifactId>
-        <version>0.1.0</version>
-    </dependency>
-    
-    <!-- JSON processing -->
-    <dependency>
-        <groupId>com.fasterxml.jackson.core</groupId>
-        <artifactId>jackson-databind</artifactId>
-    </dependency>
-    
-    <!-- Lombok for reducing boilerplate code -->
-    <dependency>
-        <groupId>org.projectlombok</groupId>
-        <artifactId>lombok</artifactId>
-        <optional>true</optional>
-    </dependency>
-</dependencies>
+    MC  -->|"SSE connection"| SSE
+    RT  -->|"HTTPS"| OWM
 ```
 
-### Step 3: Implement Weather Service
+---
 
-Create a service to interact with an external weather API (like OpenWeatherMap):
+## MCP Tools
 
-```java
-import org.springframework.stereotype.Service;
-import org.springframework.web.client.RestTemplate;
-import org.springframework.beans.factory.annotation.Value;
+| Tool | Description | Parameters |
+|------|-------------|------------|
+| `getCurrentWeather` | Current conditions for a city | `city` — e.g. `"London"` |
+| `getForecast` | Multi-day forecast | `city`, `days` (1–5) |
 
-@Service
-public class WeatherService {
-    private final RestTemplate restTemplate;
-    private final String apiKey;
-    private final String baseUrl;
+Both tools return a human-readable summary that the AI model uses to compose its response.
 
-    public WeatherService(
-            RestTemplate restTemplate,
-            @Value("${openweathermap.api-key}") String apiKey,
-            @Value("${openweathermap.base-url}") String baseUrl) {
-        this.restTemplate = restTemplate;
-        this.apiKey = apiKey;
-        this.baseUrl = baseUrl;
-    }
+---
 
-    public WeatherData getCurrentWeather(String city) {
-        String url = String.format("%s/weather?q=%s&appid=%s&units=metric", 
-                                  baseUrl, city, apiKey);
-        return restTemplate.getForObject(url, WeatherData.class);
-    }
+## Quick Start
 
-    public ForecastData getForecast(String city, int days) {
-        String url = String.format("%s/forecast?q=%s&appid=%s&units=metric&cnt=%d", 
-                                  baseUrl, city, apiKey, days * 8); // 8 forecasts per day (3-hour steps)
-        return restTemplate.getForObject(url, ForecastData.class);
-    }
-}
+**With Docker** (no Java needed):
+
+```bash
+git clone https://github.com/mm-camelcase/weather-bridge-mcp.git
+cd weather-bridge-mcp
+cp .env.example .env           # add your OPENWEATHERMAP_API_KEY
+docker-compose up
 ```
 
-### Step 4: Configure MCP Server
-
-Set up the MCP server configuration:
-
-```java
-import org.springframework.ai.mcp.server.McpServer;
-import org.springframework.ai.mcp.server.transport.http.HttpServletSseServerTransportProvider;
-import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Configuration;
-import org.springframework.web.servlet.config.annotation.EnableWebMvc;
-import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import org.springframework.boot.web.servlet.ServletRegistrationBean;
-
-@Configuration
-@EnableWebMvc
-public class McpServerConfig implements WebMvcConfigurer {
-
-    @Bean
-    public McpServer mcpServer(WeatherToolProvider weatherToolProvider) {
-        return McpServer.builder()
-                .withToolProvider(weatherToolProvider)
-                .build();
-    }
-
-    @Bean
-    public HttpServletSseServerTransportProvider servletSseServerTransportProvider() {
-        return new HttpServletSseServerTransportProvider(new ObjectMapper(), "/mcp/sse");
-    }
-
-    @Bean
-    public ServletRegistrationBean<HttpServletSseServerTransportProvider> sseServlet(
-            HttpServletSseServerTransportProvider transportProvider) {
-        return new ServletRegistrationBean<>(transportProvider, "/mcp/sse");
-    }
-}
-```
-
-### Step 5: Implement MCP Tools
-
-Create the MCP tool provider to expose weather tools:
-
-```java
-import org.springframework.ai.mcp.server.tool.McpServerToolProvider;
-import org.springframework.ai.mcp.server.tool.McpServerToolType;
-import org.springframework.ai.mcp.server.tool.McpServerTool;
-import org.springframework.stereotype.Component;
-
-@Component
-@McpServerToolType(name = "weather", description = "Tools for retrieving weather information")
-public class WeatherToolProvider implements McpServerToolProvider {
-
-    private final WeatherService weatherService;
-
-    public WeatherToolProvider(WeatherService weatherService) {
-        this.weatherService = weatherService;
-    }
-
-    @McpServerTool(
-        name = "getCurrentWeather",
-        description = "Get the current weather for a specific city",
-        inputSchema = "{\"type\":\"object\",\"properties\":{\"city\":{\"type\":\"string\"}},\"required\":[\"city\"]}"
-    )
-    public WeatherData getCurrentWeather(String city) {
-        return weatherService.getCurrentWeather(city);
-    }
-
-    @McpServerTool(
-        name = "getForecast",
-        description = "Get the weather forecast for a specific city for a number of days",
-        inputSchema = "{\"type\":\"object\",\"properties\":{\"city\":{\"type\":\"string\"},\"days\":{\"type\":\"integer\",\"minimum\":1,\"maximum\":5}},\"required\":[\"city\",\"days\"]}"
-    )
-    public ForecastData getForecast(String city, int days) {
-        return weatherService.getForecast(city, days);
-    }
-}
-```
-
-### Step 6: Create Model Classes
-
-Create model classes for weather data:
-
-```java
-import com.fasterxml.jackson.annotation.JsonProperty;
-import lombok.Data;
-import java.util.List;
-
-@Data
-public class WeatherData {
-    private Coordinates coord;
-    private List<Weather> weather;
-    private String base;
-    private MainData main;
-    private long visibility;
-    private Wind wind;
-    private Clouds clouds;
-    private long dt;
-    private Sys sys;
-    private int timezone;
-    private long id;
-    private String name;
-    private int cod;
-
-    @Data
-    public static class Coordinates {
-        private double lon;
-        private double lat;
-    }
-
-    @Data
-    public static class Weather {
-        private long id;
-        private String main;
-        private String description;
-        private String icon;
-    }
-
-    @Data
-    public static class MainData {
-        private double temp;
-        @JsonProperty("feels_like")
-        private double feelsLike;
-        @JsonProperty("temp_min")
-        private double tempMin;
-        @JsonProperty("temp_max")
-        private double tempMax;
-        private int pressure;
-        private int humidity;
-    }
-
-    @Data
-    public static class Wind {
-        private double speed;
-        private int deg;
-        private double gust;
-    }
-
-    @Data
-    public static class Clouds {
-        private int all;
-    }
-
-    @Data
-    public static class Sys {
-        private int type;
-        private long id;
-        private String country;
-        private long sunrise;
-        private long sunset;
-    }
-}
-```
-
-### Step 7: Main Application Class
-
-```java
-import org.springframework.boot.SpringApplication;
-import org.springframework.boot.autoconfigure.SpringBootApplication;
-import org.springframework.context.annotation.Bean;
-import org.springframework.web.client.RestTemplate;
-
-@SpringBootApplication
-public class WeatherBridgeMcpApplication {
-
-    public static void main(String[] args) {
-        SpringApplication.run(WeatherBridgeMcpApplication.class, args);
-    }
-
-    @Bean
-    public RestTemplate restTemplate() {
-        return new RestTemplate();
-    }
-}
-```
-
-### Step 8: Configure Application Properties
-
-Create an `application.properties` file:
-
-```properties
-server.port=8080
-openweathermap.api-key=YOUR_API_KEY_HERE
-openweathermap.base-url=https://api.openweathermap.org/data/2.5
-```
-
-### Step 9: VS Code Integration
-
-Create a `.vscode/mcp.json` file in your VS Code workspace:
+**Connect Claude Desktop** — add to `~/Library/Application Support/Claude/claude_desktop_config.json`:
 
 ```json
 {
-  "inputs": [],
-  "servers": {
-    "WeatherBridgeMcp": {
+  "mcpServers": {
+    "weather-bridge": {
       "type": "sse",
-      "url": "http://localhost:8080/mcp/sse"
+      "url": "http://localhost:8080/sse"
     }
   }
 }
 ```
 
-## Running the Project
+Restart Claude Desktop and ask: *"What's the weather in New York?"*
 
-1. Get an API key from OpenWeatherMap (or another weather API)
-2. Add your API key to `application.properties`
-3. Build and run the Spring Boot application
-4. Open VS Code and configure it with the MCP settings
-5. Use GitHub Copilot agent mode to ask weather-related questions
+See [`claude-config/README.md`](claude-config/README.md) for Claude Code (CLI) setup instructions.
 
-## Testing in GitHub Copilot
+---
 
-Once your server is running, you can test it with GitHub Copilot by:
+## Getting Started (without Docker)
 
-1. Opening GitHub Copilot
-2. Activating Agent Mode
-3. Selecting your Weather MCP tools
-4. Asking questions like "What's the current weather in New York?" or "Give me the 5-day forecast for London"
+### Prerequisites
+
+- Java 21+
+- Maven 3.9+
+- A free [OpenWeatherMap API key](https://openweathermap.org/api)
+
+### Configuration
+
+```bash
+cp .env.example .env
+# edit .env — set OPENWEATHERMAP_API_KEY=your_key_here
+export $(cat .env | xargs)
+```
+
+Or set the property directly:
+
+```bash
+mvn spring-boot:run -Dopenweathermap.api-key=your_key_here
+```
+
+### Run
+
+```bash
+mvn spring-boot:run
+```
+
+Verify the server is up:
+
+```bash
+curl http://localhost:8080/weather/health
+# → {"status":"UP","service":"weather-bridge-mcp"}
+```
+
+Manual tool testing (no MCP client needed):
+
+```bash
+curl "http://localhost:8080/weather/current/London"
+curl "http://localhost:8080/weather/forecast/Paris?days=3"
+```
+
+---
+
+## How It Works
+
+### Request Flow
+
+```mermaid
+sequenceDiagram
+    actor Dev as 👤 Developer
+    participant Claude as Claude Desktop
+    participant Client as MCP Client
+    participant Server as Weather Bridge MCP
+    participant API as OpenWeatherMap
+
+    Dev->>Claude: "What's the weather in Tokyo?"
+    Claude->>Client: tool call: getCurrentWeather("Tokyo")
+    Client->>Server: SSE POST /mcp/message
+    Server->>API: GET /weather?q=Tokyo&units=metric
+    API-->>Server: JSON payload
+    Server-->>Client: formatted weather summary
+    Client-->>Claude: tool result
+    Claude-->>Dev: "Tokyo is 18°C, partly cloudy with light winds..."
+```
+
+### Application Components
+
+```mermaid
+graph LR
+    subgraph app["Spring Boot Application"]
+        direction TB
+        MAIN["WeatherBridgeMcpApplication\n@SpringBootApplication"]
+        TCP["ToolCallbackProvider\nMethodToolCallbackProvider"]
+        WS["WeatherService\n@Tool getCurrentWeather\n@Tool getForecast"]
+        WC["WeatherController\nREST /weather/**"]
+        GEH["GlobalExceptionHandler\n@RestControllerAdvice"]
+        RT["RestTemplate"]
+
+        MAIN --> TCP
+        MAIN --> RT
+        TCP --> WS
+        WS --> RT
+        WC --> WS
+    end
+
+    subgraph infra["Auto-configured by spring-ai-starter-mcp-server-webmvc"]
+        SSE["SSE Transport\n/sse"]
+        MCPSRV["MCP Server"]
+        SSE --> MCPSRV --> TCP
+    end
+
+    RT --> OWM[("☁️ OpenWeatherMap")]
+```
+
+### Data Model
+
+```mermaid
+classDiagram
+    class WeatherData {
+        +String name
+        +List~WeatherCondition~ weather
+        +MainData main
+        +Wind wind
+        +Clouds clouds
+        +Sys sys
+        +Integer visibility
+    }
+    class MainData {
+        +double temp
+        +double feelsLike
+        +double tempMin
+        +double tempMax
+        +int humidity
+        +int pressure
+    }
+    class ForecastData {
+        +List~ForecastItem~ list
+        +City city
+    }
+    class ForecastItem {
+        +MainData main
+        +List~WeatherCondition~ weather
+        +Wind wind
+        +String dtTxt
+    }
+
+    WeatherData "1" --> "1" MainData
+    WeatherData "1" --> "0..*" WeatherCondition
+    ForecastData "1" --> "1..*" ForecastItem
+    ForecastItem "1" --> "1" MainData
+```
+
+---
+
+## Project Structure
+
+```
+weather-bridge-mcp/
+├── src/main/java/com/example/weatherbridgemcp/
+│   ├── WeatherBridgeMcpApplication.java   # Entry point + bean definitions
+│   ├── service/
+│   │   └── WeatherService.java            # @Tool methods + OpenWeatherMap client
+│   ├── model/
+│   │   ├── WeatherData.java               # Current weather response model
+│   │   └── ForecastData.java              # Forecast response model
+│   ├── controller/
+│   │   └── WeatherController.java         # REST endpoints for manual testing
+│   └── exception/
+│       ├── WeatherServiceException.java
+│       └── GlobalExceptionHandler.java
+├── src/main/resources/
+│   ├── application.properties             # Server + MCP + API configuration
+│   └── application-dev.properties         # Debug logging profile
+├── src/test/                              # Unit tests (MockRestServiceServer)
+├── claude-config/                         # Claude Desktop / Claude Code setup
+├── Dockerfile                             # Multi-stage build
+├── docker-compose.yml
+└── .github/workflows/ci.yml               # GitHub Actions
+```
+
+---
+
+## Development
+
+```bash
+# Run tests (no API key needed — uses MockRestServiceServer)
+mvn test
+
+# Build a fat JAR
+mvn clean package -DskipTests
+
+# Run with debug logging
+mvn spring-boot:run -Dspring.profiles.active=dev
+```
+
+---
+
+## Environment Variables
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `OPENWEATHERMAP_API_KEY` | Yes | API key from [openweathermap.org](https://openweathermap.org/api) |
+
+---
 
 ## Resources
 
 - [Model Context Protocol (MCP) Documentation](https://modelcontextprotocol.io/docs)
-- [Spring AI MCP Reference](https://docs.spring.io/spring-ai/reference/api/mcp/mcp-overview.html)
+- [Spring AI MCP Server Reference](https://docs.spring.io/spring-ai/reference/api/mcp/mcp-server-boot-starter-docs.html)
 - [OpenWeatherMap API Documentation](https://openweathermap.org/api)
-- [GitHub Copilot Documentation](https://docs.github.com/en/copilot)
+- [Claude Desktop MCP Guide](https://docs.anthropic.com/claude/docs/mcp)
+
+---
+
+## License
+
+[MIT](LICENSE) © 2025 mm-camelcase
