@@ -1,12 +1,13 @@
 # ── Stage 1: Build ─────────────────────────────────────────────────────────────
-FROM eclipse-temurin:21-jdk-alpine AS build
+FROM maven:3.9-eclipse-temurin-21 AS build
 WORKDIR /app
 
+# Cache dependencies as a separate layer — only re-fetched when pom.xml changes
 COPY pom.xml .
-COPY src ./src
+RUN mvn dependency:go-offline --no-transfer-progress
 
-RUN apk add --no-cache maven && \
-    mvn clean package -DskipTests --no-transfer-progress
+COPY src ./src
+RUN mvn clean package -DskipTests --no-transfer-progress
 
 # ── Stage 2: Runtime ───────────────────────────────────────────────────────────
 FROM eclipse-temurin:21-jre-alpine

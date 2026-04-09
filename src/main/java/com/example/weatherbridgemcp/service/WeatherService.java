@@ -64,7 +64,7 @@ public class WeatherService {
             }
             return formatCurrentWeather(data);
         } catch (HttpClientErrorException.NotFound e) {
-            throw new WeatherServiceException("City not found: \"" + city + "\". Check the spelling or try a larger nearby city.");
+            throw WeatherServiceException.clientError("City not found: \"" + city + "\". Check the spelling or try a larger nearby city.");
         } catch (HttpClientErrorException.Unauthorized e) {
             throw new WeatherServiceException("Invalid API key. Please update openweathermap.api-key in application.properties.");
         } catch (HttpClientErrorException e) {
@@ -88,7 +88,7 @@ public class WeatherService {
     public String getForecast(String city, int days) {
         log.info("Fetching {}-day forecast for: {}", days, city);
         if (days < 1 || days > 5) {
-            throw new WeatherServiceException("Forecast days must be between 1 and 5, received: " + days);
+            throw WeatherServiceException.clientError("Forecast days must be between 1 and 5, received: " + days);
         }
         try {
             String url = UriComponentsBuilder
@@ -106,7 +106,7 @@ public class WeatherService {
             }
             return formatForecast(data, days);
         } catch (HttpClientErrorException.NotFound e) {
-            throw new WeatherServiceException("City not found: \"" + city + "\". Check the spelling or try a larger nearby city.");
+            throw WeatherServiceException.clientError("City not found: \"" + city + "\". Check the spelling or try a larger nearby city.");
         } catch (HttpClientErrorException.Unauthorized e) {
             throw new WeatherServiceException("Invalid API key. Please update openweathermap.api-key in application.properties.");
         } catch (HttpClientErrorException e) {
@@ -155,7 +155,8 @@ public class WeatherService {
         StringBuilder sb = new StringBuilder();
         sb.append(String.format("%d-day forecast for %s%s:%n%n", days, cityName, country));
 
-        // Take the noon-ish slot for each day (index 3 = +9 h from midnight ≈ midday)
+        // Take the mid-morning slot for each day (index 3 = +9 h from midnight = 09:00)
+        // OpenWeatherMap slots: 0→00:00, 1→03:00, 2→06:00, 3→09:00, 4→12:00 …
         int slotsPerDay = 8;
         for (int day = 0; day < days; day++) {
             int slotIndex = day * slotsPerDay + Math.min(3, data.getList().size() - 1 - day * slotsPerDay);

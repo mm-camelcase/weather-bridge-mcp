@@ -50,12 +50,6 @@
             <artifactId>spring-ai-starter-mcp-server-webmvc</artifactId>
         </dependency>
 
-        <!-- Spring Web (included transitively, added explicitly for clarity) -->
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-web</artifactId>
-        </dependency>
-
         <!-- Lombok — reduces model/service boilerplate -->
         <dependency>
             <groupId>org.projectlombok</groupId>
