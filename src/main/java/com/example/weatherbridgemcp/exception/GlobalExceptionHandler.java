@@ -16,6 +16,13 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(WeatherServiceException.class)
     public ProblemDetail handleWeatherServiceException(WeatherServiceException ex) {
+        if (ex.isClientError()) {
+            log.warn("Client error: {}", ex.getMessage());
+            ProblemDetail detail = ProblemDetail.forStatus(HttpStatus.BAD_REQUEST);
+            detail.setTitle("Invalid Request");
+            detail.setDetail(ex.getMessage());
+            return detail;
+        }
         log.warn("Weather service error: {}", ex.getMessage());
         ProblemDetail detail = ProblemDetail.forStatus(HttpStatus.BAD_GATEWAY);
         detail.setTitle("Weather Service Error");
