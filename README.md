@@ -1,3 +1,5 @@
+[![MseeP.ai Security Assessment Badge](https://mseep.net/pr/mm-camelcase-weather-bridge-mcp-badge.png)](https://mseep.ai/app/mm-camelcase-weather-bridge-mcp)
+
 # Weather Bridge MCP
 
 [![CI](https://github.com/mm-camelcase/weather-bridge-mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/mm-camelcase/weather-bridge-mcp/actions/workflows/ci.yml)
