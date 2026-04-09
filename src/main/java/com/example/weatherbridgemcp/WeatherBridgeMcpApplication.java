@@ -1,7 +1,7 @@
 package com.example.weatherbridgemcp;
 
 import com.example.weatherbridgemcp.service.WeatherService;
-import org.springframework.ai.tool.MethodToolCallbackProvider;
+import org.springframework.ai.tool.method.MethodToolCallbackProvider;
 import org.springframework.ai.tool.ToolCallbackProvider;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
