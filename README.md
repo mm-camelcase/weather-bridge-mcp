@@ -4,9 +4,17 @@
 ![Java 21](https://img.shields.io/badge/Java-21-orange?logo=openjdk)
 ![Spring Boot 3.4](https://img.shields.io/badge/Spring_Boot-3.4-6DB33F?logo=springboot)
 ![Spring AI 1.0](https://img.shields.io/badge/Spring_AI-1.0-6DB33F?logo=spring)
+![GraalVM Native](https://img.shields.io/badge/GraalVM-Native_Image-orange?logo=graalvm)
+[![Deployed on Fly.io](https://img.shields.io/badge/Deployed-Fly.io-purple?logo=flydotio)](https://weather-bridge-mcp.fly.dev)
 ![License MIT](https://img.shields.io/badge/License-MIT-yellow)
 
 A Spring Boot **Model Context Protocol (MCP) server** that bridges live weather data from [OpenWeatherMap](https://openweathermap.org/api) to AI agents. Connect it to **Claude Desktop** or **Claude Code** and ask weather questions in plain English — the agent calls the right tool automatically.
+
+> **Live demo** — the server is publicly deployed as a GraalVM native image on Fly.io.
+> Point Claude Desktop or Claude Code straight at it — no local setup needed:
+> ```
+> https://weather-bridge-mcp.fly.dev/sse
+> ```
 
 ```
 "What's the weather in Tokyo?" → getCurrentWeather("Tokyo") → 18°C, partly cloudy
@@ -241,8 +249,9 @@ weather-bridge-mcp/
 │   └── application-dev.properties         # Debug logging profile
 ├── src/test/                              # Unit tests (MockRestServiceServer)
 ├── claude-config/                         # Claude Desktop / Claude Code setup
-├── Dockerfile                             # Multi-stage build
+├── Dockerfile                             # GraalVM native multi-stage build
 ├── docker-compose.yml
+├── fly.toml                               # Fly.io deployment config
 └── .github/workflows/ci.yml               # GitHub Actions
 ```
 
@@ -257,8 +266,47 @@ mvn test
 # Build a fat JAR
 mvn clean package -DskipTests
 
+# Build a GraalVM native binary (requires GraalVM JDK 21 installed locally)
+mvn -Pnative native:compile -DskipTests
+
 # Run with debug logging
 mvn spring-boot:run -Dspring.profiles.active=dev
+```
+
+---
+
+## Deploy to Fly.io
+
+The included `Dockerfile` builds a GraalVM native image (~50 MB, ~64 MB RAM at runtime).  
+Fly.io's free tier runs it always-on with no cold starts.
+
+**Prerequisites:** [flyctl](https://fly.io/docs/hands-on/install-flyctl/) installed and authenticated.
+
+```bash
+# 1. Create the app (first time only — skip on redeploy)
+fly launch --no-deploy
+
+# 2. Set your OpenWeatherMap API key as a secret
+fly secrets set OPENWEATHERMAP_API_KEY=your_key_here
+
+# 3. Deploy (native build runs inside Fly's remote builder, ~8 min first time)
+fly deploy
+
+# 4. Verify
+curl https://weather-bridge-mcp.fly.dev/weather/health
+```
+
+Once deployed, add the public SSE URL to Claude Desktop:
+
+```json
+{
+  "mcpServers": {
+    "weather-bridge": {
+      "type": "sse",
+      "url": "https://weather-bridge-mcp.fly.dev/sse"
+    }
+  }
+}
 ```
 
 ---
