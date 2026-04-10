@@ -4,9 +4,17 @@
 ![Java 21](https://img.shields.io/badge/Java-21-orange?logo=openjdk)
 ![Spring Boot 3.4](https://img.shields.io/badge/Spring_Boot-3.4-6DB33F?logo=springboot)
 ![Spring AI 1.0](https://img.shields.io/badge/Spring_AI-1.0-6DB33F?logo=spring)
+![GraalVM Native](https://img.shields.io/badge/GraalVM-Native_Image-orange?logo=graalvm)
+[![Deployed on Koyeb](https://img.shields.io/badge/Deployed-Koyeb-green?logo=koyeb)](https://weather-bridge-mcp.koyeb.app)
 ![License MIT](https://img.shields.io/badge/License-MIT-yellow)
 
 A Spring Boot **Model Context Protocol (MCP) server** that bridges live weather data from [OpenWeatherMap](https://openweathermap.org/api) to AI agents. Connect it to **Claude Desktop** or **Claude Code** and ask weather questions in plain English — the agent calls the right tool automatically.
+
+> **Live demo** — the server is publicly deployed as a GraalVM native image on Koyeb (free tier, always-on).
+> Point Claude Desktop or Claude Code straight at it — no local setup needed:
+> ```
+> https://weather-bridge-mcp.koyeb.app/sse
+> ```
 
 ```
 "What's the weather in Tokyo?" → getCurrentWeather("Tokyo") → 18°C, partly cloudy
@@ -241,7 +249,7 @@ weather-bridge-mcp/
 │   └── application-dev.properties         # Debug logging profile
 ├── src/test/                              # Unit tests (MockRestServiceServer)
 ├── claude-config/                         # Claude Desktop / Claude Code setup
-├── Dockerfile                             # Multi-stage build
+├── Dockerfile                             # GraalVM native multi-stage build
 ├── docker-compose.yml
 └── .github/workflows/ci.yml               # GitHub Actions
 ```
@@ -257,8 +265,39 @@ mvn test
 # Build a fat JAR
 mvn clean package -DskipTests
 
+# Build a GraalVM native binary (requires GraalVM JDK 21 installed locally)
+mvn -Pnative native:compile -DskipTests
+
 # Run with debug logging
 mvn spring-boot:run -Dspring.profiles.active=dev
+```
+
+---
+
+## Deploy to Koyeb
+
+The `Dockerfile` builds a GraalVM native image (~50 MB binary, ~80 MB RAM at runtime).
+Koyeb's free nano tier is always-on — no sleep, no cold starts.
+
+**Prerequisites:** A free [Koyeb account](https://www.koyeb.com) (no credit card required).
+
+1. In the Koyeb dashboard: **Create service → Docker → GitHub**
+2. Select this repository; Koyeb auto-detects the `Dockerfile`
+3. Add environment variable: `OPENWEATHERMAP_API_KEY=your_key_here`
+4. Instance type: **nano** (free tier, 256 MB RAM)
+5. Click **Deploy** — the native build runs on Koyeb's builders (~8 min first time)
+
+Once deployed, add your Koyeb URL to Claude Desktop or Claude Code:
+
+```json
+{
+  "mcpServers": {
+    "weather-bridge": {
+      "type": "sse",
+      "url": "https://your-app.koyeb.app/sse"
+    }
+  }
+}
 ```
 
 ---
