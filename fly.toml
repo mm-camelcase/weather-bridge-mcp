@@ -1,0 +1,19 @@
+# Fly.io configuration for weather-bridge-mcp
+# Deploy: fly launch --no-deploy, then fly secrets set OPENWEATHERMAP_API_KEY=..., then fly deploy
+app = "weather-bridge-mcp"
+primary_region = "lhr"
+
+[build]
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  # SSE requires always-on — never let the machine sleep
+  auto_stop_machines = false
+  auto_start_machines = true
+  min_machines_running = 1
+
+[[vm]]
+  memory = "256mb"
+  cpu_kind = "shared"
+  cpus = 1
