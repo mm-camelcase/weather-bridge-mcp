@@ -101,6 +101,14 @@
                         <groupId>org.graalvm.buildtools</groupId>
                         <artifactId>native-maven-plugin</artifactId>
                         <extensions>true</extensions>
+                        <configuration>
+                            <buildArgs>
+                                <!-- Serial GC: compile-time choice for native images (not a JVM runtime flag) -->
+                                <!-- Lowest memory overhead — ideal for Koyeb nano (256 MB) -->
+                                <buildArg>--gc=serial</buildArg>
+                                <buildArg>-H:+ReportExceptionStackTraces</buildArg>
+                            </buildArgs>
+                        </configuration>
                         <executions>
                             <execution>
                                 <id>build-native</id>

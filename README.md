@@ -5,15 +5,15 @@
 ![Spring Boot 3.4](https://img.shields.io/badge/Spring_Boot-3.4-6DB33F?logo=springboot)
 ![Spring AI 1.0](https://img.shields.io/badge/Spring_AI-1.0-6DB33F?logo=spring)
 ![GraalVM Native](https://img.shields.io/badge/GraalVM-Native_Image-orange?logo=graalvm)
-[![Deployed on Fly.io](https://img.shields.io/badge/Deployed-Fly.io-purple?logo=flydotio)](https://weather-bridge-mcp.fly.dev)
+[![Deployed on Koyeb](https://img.shields.io/badge/Deployed-Koyeb-green?logo=koyeb)](https://weather-bridge-mcp.koyeb.app)
 ![License MIT](https://img.shields.io/badge/License-MIT-yellow)
 
 A Spring Boot **Model Context Protocol (MCP) server** that bridges live weather data from [OpenWeatherMap](https://openweathermap.org/api) to AI agents. Connect it to **Claude Desktop** or **Claude Code** and ask weather questions in plain English — the agent calls the right tool automatically.
 
-> **Live demo** — the server is publicly deployed as a GraalVM native image on Fly.io.
+> **Live demo** — the server is publicly deployed as a GraalVM native image on Koyeb (free tier, always-on).
 > Point Claude Desktop or Claude Code straight at it — no local setup needed:
 > ```
-> https://weather-bridge-mcp.fly.dev/sse
+> https://weather-bridge-mcp.koyeb.app/sse
 > ```
 
 ```
@@ -251,7 +251,6 @@ weather-bridge-mcp/
 ├── claude-config/                         # Claude Desktop / Claude Code setup
 ├── Dockerfile                             # GraalVM native multi-stage build
 ├── docker-compose.yml
-├── fly.toml                               # Fly.io deployment config
 └── .github/workflows/ci.yml               # GitHub Actions
 ```
 
@@ -275,35 +274,27 @@ mvn spring-boot:run -Dspring.profiles.active=dev
 
 ---
 
-## Deploy to Fly.io
+## Deploy to Koyeb
 
-The included `Dockerfile` builds a GraalVM native image (~50 MB, ~64 MB RAM at runtime).  
-Fly.io's free tier runs it always-on with no cold starts.
+The `Dockerfile` builds a GraalVM native image (~50 MB binary, ~80 MB RAM at runtime).
+Koyeb's free nano tier is always-on — no sleep, no cold starts.
 
-**Prerequisites:** [flyctl](https://fly.io/docs/hands-on/install-flyctl/) installed and authenticated.
+**Prerequisites:** A free [Koyeb account](https://www.koyeb.com) (no credit card required).
 
-```bash
-# 1. Create the app (first time only — skip on redeploy)
-fly launch --no-deploy
+1. In the Koyeb dashboard: **Create service → Docker → GitHub**
+2. Select this repository; Koyeb auto-detects the `Dockerfile`
+3. Add environment variable: `OPENWEATHERMAP_API_KEY=your_key_here`
+4. Instance type: **nano** (free tier, 256 MB RAM)
+5. Click **Deploy** — the native build runs on Koyeb's builders (~8 min first time)
 
-# 2. Set your OpenWeatherMap API key as a secret
-fly secrets set OPENWEATHERMAP_API_KEY=your_key_here
-
-# 3. Deploy (native build runs inside Fly's remote builder, ~8 min first time)
-fly deploy
-
-# 4. Verify
-curl https://weather-bridge-mcp.fly.dev/weather/health
-```
-
-Once deployed, add the public SSE URL to Claude Desktop:
+Once deployed, add your Koyeb URL to Claude Desktop or Claude Code:
 
 ```json
 {
   "mcpServers": {
     "weather-bridge": {
       "type": "sse",
-      "url": "https://weather-bridge-mcp.fly.dev/sse"
+      "url": "https://your-app.koyeb.app/sse"
     }
   }
 }
